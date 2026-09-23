@@ -15,38 +15,66 @@ public struct InputData_t
 
 public partial class Fixes
 {
-    private unsafe delegate void CBaseFilter_InputTestActivatorDelegate(nint pEntity, InputData_t* inputData);
+    private unsafe delegate nint CBaseFilter_InputTestActivatorDelegateLinux(nint pEntity, InputData_t* inputData);
+    private unsafe delegate nint CBaseFilter_InputTestActivatorDelegateWindows(nint pEntity, InputData_t* inputData, nint pUnknown);
 
-    private IUnmanagedFunction<CBaseFilter_InputTestActivatorDelegate>? _CBaseFilter_InputTestActivatorDelegate;
+    private IUnmanagedFunction<CBaseFilter_InputTestActivatorDelegateLinux>? _CBaseFilter_InputTestActivatorDelegateLinux;
+    private IUnmanagedFunction<CBaseFilter_InputTestActivatorDelegateWindows>? _CBaseFilter_InputTestActivatorDelegateWindows;
     private bool enableInputActivatorCrashFix = false;
 
     public void InitInputActivatorCrashFix()
     {
-        _CBaseFilter_InputTestActivatorDelegate = Core.Memory.GetUnmanagedFunctionByAddress<CBaseFilter_InputTestActivatorDelegate>(
-            Core.GameData.GetSignature("CBaseFilter::InputTestActivator")
-        );
-
+        
         enableInputActivatorCrashFix = Config.CurrentValue.EnableInputActivatorCrashFix;
         Config.OnChange((v, _) =>
         {
             enableInputActivatorCrashFix = v.EnableInputActivatorCrashFix;
         });
 
-        _CBaseFilter_InputTestActivatorDelegate.AddHook(next =>
+        if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            unsafe
-            {
-                return (pEntity, inputData) =>
-                {
-                    if (enableInputActivatorCrashFix)
-                    {
-                        if (inputData->Activator == 0) return;
-                    }
+            _CBaseFilter_InputTestActivatorDelegateWindows = Core.Memory.GetUnmanagedFunctionByAddress<CBaseFilter_InputTestActivatorDelegateWindows>(
+                Core.GameData.GetSignature("CBaseFilter::InputTestActivator")
+            );
 
-                    next()(pEntity, inputData);
-                };
-            }
-        });
+            _CBaseFilter_InputTestActivatorDelegateWindows.AddHook(next =>
+            {
+                unsafe
+                {
+                    return (pEntity, inputData, pUnknown) =>
+                    {
+                        if (enableInputActivatorCrashFix)
+                        {
+                            if (inputData->Activator == 0) return 0;
+                        }
+
+                        return next()(pEntity, inputData, pUnknown);
+                    };
+                }
+            });
+        } 
+        else
+        {
+            _CBaseFilter_InputTestActivatorDelegateLinux = Core.Memory.GetUnmanagedFunctionByAddress<CBaseFilter_InputTestActivatorDelegateLinux>(
+                Core.GameData.GetSignature("CBaseFilter::InputTestActivator")
+            );
+
+            _CBaseFilter_InputTestActivatorDelegateLinux.AddHook(next =>
+            {
+                unsafe
+                {
+                    return (pEntity, inputData) =>
+                    {
+                        if (enableInputActivatorCrashFix)
+                        {
+                            if (inputData->Activator == 0) return 0;
+                        }
+
+                        return next()(pEntity, inputData);
+                    };
+                }
+            });
+        }
     }
 
 }
