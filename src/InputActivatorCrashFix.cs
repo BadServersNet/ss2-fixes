@@ -16,10 +16,8 @@ public struct InputData_t
 public partial class Fixes
 {
     private unsafe delegate nint CBaseFilter_InputTestActivatorDelegateLinux(nint pEntity, InputData_t* inputData);
-    private unsafe delegate nint CBaseFilter_InputTestActivatorDelegateWindows(nint pEntity, InputData_t* inputData, nint pUnknown);
 
     private IUnmanagedFunction<CBaseFilter_InputTestActivatorDelegateLinux>? _CBaseFilter_InputTestActivatorDelegateLinux;
-    private IUnmanagedFunction<CBaseFilter_InputTestActivatorDelegateWindows>? _CBaseFilter_InputTestActivatorDelegateWindows;
     private bool enableInputActivatorCrashFix = false;
 
     public void InitInputActivatorCrashFix()
@@ -33,25 +31,6 @@ public partial class Fixes
 
         if(RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            _CBaseFilter_InputTestActivatorDelegateWindows = Core.Memory.GetUnmanagedFunctionByAddress<CBaseFilter_InputTestActivatorDelegateWindows>(
-                Core.GameData.GetSignature("CBaseFilter::InputTestActivator")
-            );
-
-            _CBaseFilter_InputTestActivatorDelegateWindows.AddHook(next =>
-            {
-                unsafe
-                {
-                    return (pEntity, inputData, pUnknown) =>
-                    {
-                        if (enableInputActivatorCrashFix)
-                        {
-                            if (inputData->Activator == 0) return 0;
-                        }
-
-                        return next()(pEntity, inputData, pUnknown);
-                    };
-                }
-            });
         } 
         else
         {
