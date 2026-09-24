@@ -1,7 +1,8 @@
+using SwiftlyS2.Shared.Commands;
 using SwiftlyS2.Shared.Events;
+using SwiftlyS2.Shared.GameEventDefinitions;
+using SwiftlyS2.Shared.GameEvents;
 using SwiftlyS2.Shared.Misc;
-using SwiftlyS2.Shared.Players;
-using SwiftlyS2.Shared.SchemaDefinitions;
 
 namespace Fixes;
 
@@ -21,54 +22,12 @@ public partial class Fixes
 
         if (enabled)
         {
-            EnableFakeMessagesFix();
+            fakeMessagesFixHookId = Core.Command.HookClientChat(OnClientChat);
             return;
         }
 
-        DisableFakeMessagesFix();
-    }
-
-    private void EnableFakeMessagesFix()
-    {
-        var connectedPlayerIds = GetConnectedPlayerIds();
-
-        lock (_inGameClientsLock)
-        {
-            inGameClients = connectedPlayerIds;
-        }
-
-        Core.Event.OnClientPutInServer += OnClientPutInServer;
-        Core.Event.OnClientDisconnected += OnClientDisconnected;
-        fakeMessagesFixHookId = Core.Command.HookClientChat(OnClientChat);
-    }
-
-    private void DisableFakeMessagesFix()
-    {
         Core.Command.UnhookClientChat(fakeMessagesFixHookId!.Value);
-        Core.Event.OnClientPutInServer -= OnClientPutInServer;
-        Core.Event.OnClientDisconnected -= OnClientDisconnected;
         fakeMessagesFixHookId = null;
-
-        lock (_inGameClientsLock)
-        {
-            inGameClients.Clear();
-        }
-    }
-
-    private List<int> GetConnectedPlayerIds()
-    {
-        var players = Core.PlayerManager.GetAllPlayers();
-        var connectedPlayers = players.Where(IsPlayerConnected);
-        var playerIds = connectedPlayers.Select(player => player.PlayerID);
-
-        return playerIds.ToList();
-    }
-
-    private static bool IsPlayerConnected(IPlayer player)
-    {
-        var controller = player.Controller;
-
-        return controller is { IsValid: true, Connected: PlayerConnectedState.Connected };
     }
 
     public HookResult OnClientChat(int playerId, string text, bool teamonly)
@@ -83,6 +42,7 @@ public partial class Fixes
         return HookResult.Continue;
     }
 
+    [EventListener<EventDelegates.OnClientPutInServer>]
     public void OnClientPutInServer(IOnClientPutInServerEvent @event)
     {
         lock (_inGameClientsLock)
@@ -91,6 +51,7 @@ public partial class Fixes
         }
     }
 
+    [EventListener<EventDelegates.OnClientDisconnected>]
     public void OnClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         lock (_inGameClientsLock)
