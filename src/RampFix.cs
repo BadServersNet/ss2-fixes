@@ -60,22 +60,47 @@ public partial class Fixes
         return dirs;
     }
 
-    private void InitRampFix()
+    private void SetRampFixEnabled(bool enabled)
     {
-        rampFixEnabled = Config.CurrentValue.EnableRampFix;
-        Config.OnChange((v, _) =>
+        if (enabled == rampFixEnabled)
         {
-            rampFixEnabled = v.EnableRampFix;
-        });
+            return;
+        }
 
+        rampFixEnabled = enabled;
+
+        if (enabled)
+        {
+            EnableRampFix();
+            return;
+        }
+
+        DisableRampFix();
+    }
+
+    private void EnableRampFix()
+    {
         Core.GameHooks.Movement.ProcessMovement.Pre += OnRampFixProcessMovementPre;
         Core.GameHooks.Movement.ProcessMovement.Post += OnRampFixProcessMovementPost;
         Core.GameHooks.Movement.TryPlayerMove.Pre += OnRampFixTryPlayerMovePre;
         Core.GameHooks.Movement.TryPlayerMove.Post += OnRampFixTryPlayerMovePost;
         Core.GameHooks.Movement.CategorizePosition.Pre += OnRampFixCategorizePositionPre;
+        Core.Event.OnClientDisconnected += OnRampFixClientDisconnected;
     }
 
-    [EventListener<EventDelegates.OnClientDisconnected>]
+    private void DisableRampFix()
+    {
+        Core.GameHooks.Movement.ProcessMovement.Pre -= OnRampFixProcessMovementPre;
+        Core.GameHooks.Movement.ProcessMovement.Post -= OnRampFixProcessMovementPost;
+        Core.GameHooks.Movement.TryPlayerMove.Pre -= OnRampFixTryPlayerMovePre;
+        Core.GameHooks.Movement.TryPlayerMove.Post -= OnRampFixTryPlayerMovePost;
+        Core.GameHooks.Movement.CategorizePosition.Pre -= OnRampFixCategorizePositionPre;
+        Core.Event.OnClientDisconnected -= OnRampFixClientDisconnected;
+        _rampFixLastValidPlaneNormal.Clear();
+        _rampFixDidTpm.Clear();
+        _rampFixTpmCandidate.Clear();
+    }
+
     public void OnRampFixClientDisconnected(IOnClientDisconnectedEvent @event)
     {
         _rampFixLastValidPlaneNormal.TryRemove(@event.PlayerId, out _);
@@ -87,15 +112,11 @@ public partial class Fixes
     // (dead, invalid pawn, etc.) the tracked ramp-plane state is stale and gets cleared.
     private void OnRampFixProcessMovementPre(ref ProcessMovementMovementPreContext ctx)
     {
-        if (!rampFixEnabled) return;
-
         _rampFixDidTpm[ctx.Params.Player.Slot] = false;
     }
 
     private void OnRampFixProcessMovementPost(ref ProcessMovementMovementPostContext ctx)
     {
-        if (!rampFixEnabled) return;
-
         var slot = ctx.Params.Player.Slot;
 
         if (!_rampFixDidTpm.TryGetValue(slot, out var didTpm) || !didTpm)
@@ -106,8 +127,6 @@ public partial class Fixes
 
     private void OnRampFixTryPlayerMovePre(ref TryPlayerMoveMovementPreContext ctx)
     {
-        if (!rampFixEnabled) return;
-
         var player = ctx.Params.Player;
         var pawn = player.PlayerPawn;
 
@@ -146,8 +165,6 @@ public partial class Fixes
 
     private void OnRampFixTryPlayerMovePost(ref TryPlayerMoveMovementPostContext ctx)
     {
-        if (!rampFixEnabled) return;
-
         var slot = ctx.Params.Player.Slot;
 
         if (!_rampFixTpmCandidate.TryRemove(slot, out var candidate) || !candidate.Overrode)
@@ -187,8 +204,6 @@ public partial class Fixes
 
     private void OnRampFixCategorizePositionPre(ref CategorizePositionMovementPreContext ctx)
     {
-        if (!rampFixEnabled) return;
-
         var p = ctx.Params;
 
         if (p.StayOnGround || p.MoveData.Velocity.Z > -64.0f)
