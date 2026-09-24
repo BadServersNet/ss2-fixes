@@ -26,7 +26,7 @@ public partial class Fixes
     private const float RampFixMinMoveDistanceSq = RampFixMinMoveDistance * RampFixMinMoveDistance;
 
     private static readonly Vector RampFixEmptyVector = new();
-    private static readonly Vector[] RampFixOffsetDirections = BuildRampFixOffsetDirections();
+    private Vector[] rampFixOffsetDirections = [];
 
     // Per-player state, keyed by player slot - mirrors the original's PlayerSlot-indexed arrays.
     private readonly ConcurrentDictionary<int, Vector> _rampFixLastValidPlaneNormal = new();
@@ -80,6 +80,11 @@ public partial class Fixes
 
     private void EnableRampFix()
     {
+        if (rampFixOffsetDirections.Length == 0)
+        {
+            rampFixOffsetDirections = BuildRampFixOffsetDirections();
+        }
+
         Core.GameHooks.Movement.ProcessMovement.Pre += OnRampFixProcessMovementPre;
         Core.GameHooks.Movement.ProcessMovement.Post += OnRampFixProcessMovementPost;
         Core.GameHooks.Movement.TryPlayerMove.Pre += OnRampFixTryPlayerMovePre;
@@ -400,7 +405,7 @@ public partial class Fixes
 
         var overrodeTpm = false;
 
-        var offsetDirections = RampFixOffsetDirections;
+        var offsetDirections = rampFixOffsetDirections;
 
         // Mirrors pm->Fraction / pm->EndPosition / pm->PlaneNormal from the original -
         // declared outside the loop so the last bump's values survive to the final
